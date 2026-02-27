@@ -1,0 +1,66 @@
+{
+  "players": {
+    "dilip": {
+      "name": "Dilip",
+      "played": 0,
+      "won": 0,
+      "drawn": 0,
+      "lost": 0,
+      "gf": 0,
+      "ga": 0,
+      "gd": 0,
+      "points": 0
+    },
+    "sankit": {
+      "name": "Sankit",
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "gf": 1,
+      "ga": 0,
+      "gd": 1,
+      "points": 2
+    },
+    "prajwol": {
+      "name": "Prajwol",
+      "played": 2,
+      "won": 0,
+      "drawn": 1,
+      "lost": 1,
+      "gf": 0,
+      "ga": 1,
+      "gd": -1,
+      "points": 1
+    },
+    "anish": {
+      "name": "Anish",
+      "played": 1,
+      "won": 0,
+      "drawn": 1,
+      "lost": 0,
+      "gf": 0,
+      "ga": 0,
+      "gd": 0,
+      "points": 1
+    }
+  },
+  "matches": [
+    {
+      "id": 1772182068573,
+      "homePlayer": "Anish",
+      "awayPlayer": "Prajwol",
+      "homeGoals": 0,
+      "awayGoals": 0,
+      "date": "2026-02-27T08:47:48.573Z"
+    },
+    {
+      "id": 1772182008907,
+      "homePlayer": "Sankit",
+      "awayPlayer": "Prajwol",
+      "homeGoals": 1,
+      "awayGoals": 0,
+      "date": "2026-02-27T08:46:48.907Z"
+    }
+  ]
+}
