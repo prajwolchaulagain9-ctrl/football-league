@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import ThreeBackground from './ThreeBackground';
 
@@ -12,6 +12,54 @@ const PLAYER_ICONS = {
 };
 
 const PLAYERS = ['Dilip', 'Sankit', 'Prajwol', 'Anish'];
+
+// ── Fixtures (double round-robin, 2 matches per matchday) ──────────
+// Each pair plays once as Home and once as Away across all matchdays.
+// Second half has randomized matchday groupings and home/away order.
+const FIXTURES = [
+  {
+    matchday: 1,
+    matches: [
+      { home: 'Prajwol', away: 'Dilip' },
+      { home: 'Sankit',  away: 'Anish' },
+    ],
+  },
+  {
+    matchday: 2,
+    matches: [
+      { home: 'Prajwol', away: 'Sankit' },
+      { home: 'Dilip',   away: 'Anish'  },
+    ],
+  },
+  {
+    matchday: 3,
+    matches: [
+      { home: 'Prajwol', away: 'Anish'  },
+      { home: 'Sankit',  away: 'Dilip'  },
+    ],
+  },
+  {
+    matchday: 4,
+    matches: [
+      { home: 'Anish',   away: 'Prajwol' },
+      { home: 'Dilip',   away: 'Sankit'  },
+    ],
+  },
+  {
+    matchday: 5,
+    matches: [
+      { home: 'Dilip',   away: 'Prajwol' },
+      { home: 'Anish',   away: 'Sankit'  },
+    ],
+  },
+  {
+    matchday: 6,
+    matches: [
+      { home: 'Sankit',  away: 'Prajwol' },
+      { home: 'Anish',   away: 'Dilip'   },
+    ],
+  },
+];
 
 function PasswordModal({ title, onConfirm, onCancel }) {
   const [pwd, setPwd] = useState('');
@@ -73,6 +121,8 @@ function App() {
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [modal, setModal]                   = useState(null); // { title, onConfirm }
+  const [openMatchday, setOpenMatchday]     = useState(null); // expanded matchday
+  const formRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -167,6 +217,21 @@ function App() {
 
   const getRankBadge = (idx) => ['🥇','🥈','🥉'][idx] ?? `#${idx + 1}`;
 
+  // Find a played match for a fixture (exact home/away direction matters)
+  const findFixtureResult = (home, away) =>
+    matches.find(m => m.homePlayer === home && m.awayPlayer === away) || null;
+
+  // Click a pending fixture → pre-fill the Submit form and scroll to it
+  const handleFixtureClick = (home, away) => {
+    setHomePlayer(home);
+    setAwayPlayer(away);
+    setHomeGoals('');
+    setAwayGoals('');
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
+
   return (
     <div className="app">
       <ThreeBackground />
@@ -232,8 +297,71 @@ function App() {
           </div>
         </section>
 
+        {/* ── Fixtures ── */}
+        <section className="card fixtures-card" style={{ animationDelay: '0.10s' }}>
+          <div className="card-header"><h2>📅 Fixtures</h2></div>
+          <div className="fixtures-list">
+            {FIXTURES.map(({ matchday, matches: fxMatches }) => {
+              const played   = fxMatches.filter(fx => findFixtureResult(fx.home, fx.away)).length;
+              const isOpen   = openMatchday === matchday;
+              const allDone  = played === fxMatches.length;
+              return (
+                <div key={matchday} className={`matchday-block ${isOpen ? 'open' : ''}`}>
+                  <button
+                    className="matchday-header"
+                    onClick={() => setOpenMatchday(isOpen ? null : matchday)}
+                  >
+                    <span className="matchday-label">Matchday {matchday}</span>
+                    <span className={`matchday-badge ${allDone ? 'done' : played > 0 ? 'partial' : 'pending'}`}>
+                      {played}/{fxMatches.length}
+                    </span>
+                    <span className="matchday-chevron">{isOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="matchday-matches">
+                      {fxMatches.map((fx, i) => {
+                        const result = findFixtureResult(fx.home, fx.away);
+                        return (
+                          <div key={i} className={`fixture-row ${result ? 'played' : 'pending'}`}>
+                            <span className="fx-player home">
+                              {PLAYER_ICONS[fx.home]} {fx.home}
+                            </span>
+                            {result ? (
+                              <span className="fx-score played-score">
+                                <span className={result.homeGoals > result.awayGoals ? 'fx-win' : result.homeGoals < result.awayGoals ? 'fx-lose' : ''}>
+                                  {result.homeGoals}
+                                </span>
+                                <span className="fx-sep">:</span>
+                                <span className={result.awayGoals > result.homeGoals ? 'fx-win' : result.awayGoals < result.homeGoals ? 'fx-lose' : ''}>
+                                  {result.awayGoals}
+                                </span>
+                              </span>
+                            ) : (
+                              <button
+                                className="fx-submit-btn"
+                                onClick={() => handleFixtureClick(fx.home, fx.away)}
+                                title="Submit result for this fixture"
+                              >
+                                Submit
+                              </button>
+                            )}
+                            <span className="fx-player away">
+                              {fx.away} {PLAYER_ICONS[fx.away]}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         {/* ── Submit Result ── */}
-        <section className="card form-card" style={{ animationDelay: '0.12s' }}>
+        <section ref={formRef} className="card form-card" style={{ animationDelay: '0.12s' }}>
           <div className="card-header"><h2>📝 Submit Result</h2></div>
           <form onSubmit={handleSubmit} className="result-form">
             <div className="match-input">
