@@ -12,7 +12,9 @@
    ```bash
    git init
    git add .
-   git commit -m "Initial commit"
+   git commit -m "Initial commit"// ...existing code...
+const API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// ...existing code...
    ```
 
 2. Create a new repository on GitHub:

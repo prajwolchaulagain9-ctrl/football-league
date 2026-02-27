@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
+import ThreeBackground from './ThreeBackground';
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -12,34 +13,83 @@ const PLAYER_ICONS = {
 
 const PLAYERS = ['Dilip', 'Sankit', 'Prajwol', 'Anish'];
 
+function PasswordModal({ title, onConfirm, onCancel }) {
+  const [pwd, setPwd] = useState('');
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <h3 className="modal-title">{title}</h3>
+        <input
+          autoFocus
+          type="password"
+          className="password-input"
+          placeholder="Enter password"
+          value={pwd}
+          onChange={e => setPwd(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onConfirm(pwd)}
+        />
+        <div className="modal-actions">
+          <button className="confirm-yes" onClick={() => onConfirm(pwd)}>Confirm</button>
+          <button className="confirm-no"  onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonRows() {
+  return [...Array(4)].map((_, i) => (
+    <tr key={i} className="skeleton-row">
+      <td><span className="skeleton-cell small" /></td>
+      <td className="player-col"><span className="skeleton-cell wide" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+      <td><span className="skeleton-cell small" /></td>
+    </tr>
+  ));
+}
+
+function getResultBadge(match) {
+  if (match.homeGoals > match.awayGoals) return { label: 'W', cls: 'win',  side: match.homePlayer };
+  if (match.homeGoals < match.awayGoals) return { label: 'W', cls: 'win',  side: match.awayPlayer };
+  return { label: 'D', cls: 'draw', side: null };
+}
+
 function App() {
-  const [standings, setStandings] = useState([]);
-  const [matches, setMatches] = useState([]);
-  const [homePlayer, setHomePlayer] = useState('');
-  const [awayPlayer, setAwayPlayer] = useState('');
-  const [homeGoals, setHomeGoals] = useState('');
-  const [awayGoals, setAwayGoals] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState({ text: '', type: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [standings, setStandings]           = useState([]);
+  const [matches,   setMatches]             = useState([]);
+  const [loading,   setLoading]             = useState(true);
+  const [homePlayer, setHomePlayer]         = useState('');
+  const [awayPlayer, setAwayPlayer]         = useState('');
+  const [homeGoals,  setHomeGoals]          = useState('');
+  const [awayGoals,  setAwayGoals]          = useState('');
+  const [password,   setPassword]           = useState('');
+  const [message,    setMessage]            = useState({ text: '', type: '' });
+  const [isSubmitting, setIsSubmitting]     = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [modal, setModal]                   = useState(null); // { title, onConfirm }
 
   const fetchData = useCallback(async () => {
     try {
-      const [standingsRes, matchesRes] = await Promise.all([
+      const [sRes, mRes] = await Promise.all([
         fetch(`${API}/standings`),
         fetch(`${API}/matches`),
       ]);
-      setStandings(await standingsRes.json());
-      setMatches(await matchesRes.json());
+      setStandings(await sRes.json());
+      setMatches(await mRes.json());
     } catch {
       setMessage({ text: 'Failed to load data. Is the server running?', type: 'error' });
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const showMsg = (text, type = 'success') => {
     setMessage({ text, type });
@@ -49,9 +99,9 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!homePlayer || !awayPlayer) { showMsg('Please select both players', 'error'); return; }
-    if (homePlayer === awayPlayer) { showMsg('Players must be different!', 'error'); return; }
+    if (homePlayer === awayPlayer)  { showMsg('Players must be different!', 'error'); return; }
     if (homeGoals === '' || awayGoals === '') { showMsg('Please enter goals for both players', 'error'); return; }
-    if (!password) { showMsg('Please enter password', 'error'); return; }
+    if (!password) { showMsg('Please enter the password', 'error'); return; }
 
     setIsSubmitting(true);
     try {
@@ -62,7 +112,7 @@ function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        showMsg(`⚽ ${homePlayer} ${homeGoals} - ${awayGoals} ${awayPlayer} recorded!`);
+        showMsg(`⚽ ${homePlayer} ${homeGoals} – ${awayGoals} ${awayPlayer} recorded!`);
         setHomePlayer(''); setAwayPlayer(''); setHomeGoals(''); setAwayGoals(''); setPassword('');
         fetchData();
       } else {
@@ -74,44 +124,40 @@ function App() {
     setIsSubmitting(false);
   };
 
-  const handleUndo = async (matchId) => {
-    const pwd = prompt('Enter password to undo match:');
-    if (!pwd) return;
-    if (pwd !== '2244') {
-      showMsg('Invalid password', 'error');
-      return;
-    }
-    try {
-      const res = await fetch(`${API}/matches/${matchId}`, { 
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pwd })
-      });
-      if (res.ok) { showMsg('Match removed!'); fetchData(); }
-      else { const data = await res.json(); showMsg(data.error, 'error'); }
-    } catch {
-      showMsg('Failed to undo match', 'error');
-    }
+  const handleUndo = (matchId) => {
+    setModal({
+      title: '🔐 Password to undo match',
+      onConfirm: async (pwd) => {
+        setModal(null);
+        try {
+          const res = await fetch(`${API}/matches/${matchId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd }),
+          });
+          if (res.ok) { showMsg('Match removed!'); fetchData(); }
+          else { const d = await res.json(); showMsg(d.error, 'error'); }
+        } catch { showMsg('Failed to undo match', 'error'); }
+      },
+    });
   };
 
-  const handleReset = async () => {
-    const pwd = prompt('Enter password to reset league:');
-    if (!pwd) return;
-    if (pwd !== '2244') {
-      showMsg('Invalid password', 'error');
-      return;
-    }
-    try {
-      const res = await fetch(`${API}/reset`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pwd })
-      });
-      if (res.ok) { showMsg('League has been reset!'); setShowConfirmReset(false); fetchData(); }
-      else { const data = await res.json(); showMsg(data.error, 'error'); }
-    } catch {
-      showMsg('Failed to reset league', 'error');
-    }
+  const handleReset = () => {
+    setModal({
+      title: '🔐 Password to reset league',
+      onConfirm: async (pwd) => {
+        setModal(null);
+        try {
+          const res = await fetch(`${API}/reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd }),
+          });
+          if (res.ok) { showMsg('League has been reset!'); setShowConfirmReset(false); fetchData(); }
+          else { const d = await res.json(); showMsg(d.error, 'error'); }
+        } catch { showMsg('Failed to reset league', 'error'); }
+      },
+    });
   };
 
   const formatDate = (iso) => {
@@ -119,24 +165,19 @@ function App() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  const getRankBadge = (idx) => {
-    if (idx === 0) return '🥇';
-    if (idx === 1) return '🥈';
-    if (idx === 2) return '🥉';
-    return `#${idx + 1}`;
-  };
+  const getRankBadge = (idx) => ['🥇','🥈','🥉'][idx] ?? `#${idx + 1}`;
 
   return (
     <div className="app">
-      <div className="bg-particles">
-        {[...Array(20)].map((_, i) => (
-          <div key={i} className="particle" style={{
-            left: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 15}s`,
-            animationDuration: `${15 + Math.random() * 20}s`,
-          }} />
-        ))}
-      </div>
+      <ThreeBackground />
+
+      {modal && (
+        <PasswordModal
+          title={modal.title}
+          onConfirm={modal.onConfirm}
+          onCancel={() => setModal(null)}
+        />
+      )}
 
       <header className="header">
         <div className="header-content">
@@ -151,8 +192,9 @@ function App() {
       )}
 
       <main className="main">
-        {/* Standings */}
-        <section className="card standings-card">
+
+        {/* ── Standings ── */}
+        <section className="card standings-card" style={{ animationDelay: '0.05s' }}>
           <div className="card-header"><h2>🏆 League Standings</h2></div>
           <div className="table-wrapper">
             <table className="standings-table">
@@ -166,7 +208,7 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {standings.map((player, idx) => (
+                {loading ? <SkeletonRows /> : standings.map((player, idx) => (
                   <tr key={player.name} className={`standing-row rank-${idx + 1}`}>
                     <td className="rank-col"><span className="rank-badge">{getRankBadge(idx)}</span></td>
                     <td className="player-col">
@@ -190,8 +232,8 @@ function App() {
           </div>
         </section>
 
-        {/* Submit Result */}
-        <section className="card form-card">
+        {/* ── Submit Result ── */}
+        <section className="card form-card" style={{ animationDelay: '0.12s' }}>
           <div className="card-header"><h2>📝 Submit Result</h2></div>
           <form onSubmit={handleSubmit} className="result-form">
             <div className="match-input">
@@ -235,55 +277,61 @@ function App() {
             </div>
             <div className="password-field">
               <label>🔒 Password</label>
-              <input 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder="Enter password to submit" 
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password to submit"
                 className="password-input"
               />
             </div>
             <button type="submit" className="submit-btn" disabled={isSubmitting}>
-              {isSubmitting ? '⏳ Submitting...' : '🏁 Submit Result'}
+              {isSubmitting ? '⏳ Submitting…' : '🏁 Submit Result'}
             </button>
           </form>
         </section>
 
-        {/* Match History */}
-        <section className="card history-card">
+        {/* ── Match History ── */}
+        <section className="card history-card" style={{ animationDelay: '0.19s' }}>
           <div className="card-header">
             <h2>📜 Match History</h2>
-            {matches.length > 0 && <span className="match-count">{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>}
+            {matches.length > 0 && (
+              <span className="match-count">{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>
+            )}
           </div>
-          {matches.length === 0 ? (
+          {loading || matches.length === 0 ? (
             <div className="empty-state">
-              <span className="empty-icon">🏟️</span>
-              <p>No matches played yet. Submit your first result!</p>
+              <span className="empty-icon">{loading ? '⏳' : '🏟️'}</span>
+              <p>{loading ? 'Loading matches…' : 'No matches played yet. Submit your first result!'}</p>
             </div>
           ) : (
             <div className="matches-list">
-              {matches.map((match) => (
-                <div key={match.id} className="match-item">
-                  <div className="match-players">
-                    <span className="match-player home">{PLAYER_ICONS[match.homePlayer]} {match.homePlayer}</span>
-                    <span className="match-score">
-                      <span className={match.homeGoals > match.awayGoals ? 'winner' : match.homeGoals < match.awayGoals ? 'loser' : ''}>{match.homeGoals}</span>
-                      <span className="score-sep">:</span>
-                      <span className={match.awayGoals > match.homeGoals ? 'winner' : match.awayGoals < match.homeGoals ? 'loser' : ''}>{match.awayGoals}</span>
-                    </span>
-                    <span className="match-player away">{match.awayPlayer} {PLAYER_ICONS[match.awayPlayer]}</span>
+              {matches.map((match) => {
+                const badge = getResultBadge(match);
+                return (
+                  <div key={match.id} className="match-item">
+                    <div className="match-players">
+                      <span className="match-player home">{PLAYER_ICONS[match.homePlayer]} {match.homePlayer}</span>
+                      <span className="match-score">
+                        <span className={match.homeGoals > match.awayGoals ? 'winner' : match.homeGoals < match.awayGoals ? 'loser' : ''}>{match.homeGoals}</span>
+                        <span className="score-sep">:</span>
+                        <span className={match.awayGoals > match.homeGoals ? 'winner' : match.awayGoals < match.homeGoals ? 'loser' : ''}>{match.awayGoals}</span>
+                      </span>
+                      <span className="match-player away">{match.awayPlayer} {PLAYER_ICONS[match.awayPlayer]}</span>
+                    </div>
+                    <div className="match-meta">
+                      <span className={`result-badge ${badge.cls}`}>{badge.label}</span>
+                      <span className="match-date">{formatDate(match.date)}</span>
+                      <button className="undo-btn" onClick={() => handleUndo(match.id)} title="Remove this match">✕</button>
+                    </div>
                   </div>
-                  <div className="match-meta">
-                    <span className="match-date">{formatDate(match.date)}</span>
-                    <button className="undo-btn" onClick={() => handleUndo(match.id)} title="Remove this match">✕</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
 
-        {/* Reset */}
+        {/* ── Reset ── */}
         <div className="reset-section">
           {!showConfirmReset ? (
             <button className="reset-btn" onClick={() => setShowConfirmReset(true)}>🔄 Reset League</button>
@@ -291,7 +339,7 @@ function App() {
             <div className="reset-confirm">
               <p>Are you sure? This will erase all data!</p>
               <button className="confirm-yes" onClick={handleReset}>Yes, Reset</button>
-              <button className="confirm-no" onClick={() => setShowConfirmReset(false)}>Cancel</button>
+              <button className="confirm-no"  onClick={() => setShowConfirmReset(false)}>Cancel</button>
             </div>
           )}
         </div>
