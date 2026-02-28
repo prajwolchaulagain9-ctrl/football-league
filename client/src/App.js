@@ -122,7 +122,37 @@ function App() {
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [modal, setModal]                   = useState(null); // { title, onConfirm }
   const [openMatchday, setOpenMatchday]     = useState(null); // expanded matchday
-  const formRef = useRef(null);
+  const [musicPlaying, setMusicPlaying]     = useState(false);
+  const formRef  = useRef(null);
+  const audioRef = useRef(null);
+
+  // Attempt autoplay on first interaction
+  useEffect(() => {
+    const tryPlay = () => {
+      if (audioRef.current && !musicPlaying) {
+        audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {});
+      }
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('keydown', tryPlay);
+    };
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('keydown', tryPlay);
+    return () => {
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('keydown', tryPlay);
+    };
+  }, [musicPlaying]);
+
+  const toggleMusic = (e) => {
+    e.stopPropagation();
+    if (!audioRef.current) return;
+    if (musicPlaying) {
+      audioRef.current.pause();
+      setMusicPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setMusicPlaying(true)).catch(() => {});
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -235,6 +265,19 @@ function App() {
   return (
     <div className="app">
       <ThreeBackground />
+
+      {/* ── UCL Anthem Audio ── */}
+      <audio ref={audioRef} src="/ucl-anthem.mp3" loop preload="auto" />
+
+      {/* ── Floating Music Button ── */}
+      <button
+        className={`music-fab ${musicPlaying ? 'playing' : ''}`}
+        onClick={toggleMusic}
+        title={musicPlaying ? 'Pause UCL Anthem' : 'Play UCL Anthem'}
+        aria-label={musicPlaying ? 'Pause music' : 'Play music'}
+      >
+        {musicPlaying ? '🔊' : '🔇'}
+      </button>
 
       {modal && (
         <PasswordModal
